@@ -12,7 +12,7 @@ from django.contrib.auth.models import User
 from .models import UserProfile
 
 from secret_sharing_app.serializers import UserProfileSerializer
-from .encryption import generate_rsa_key_pair, encrypt_secret, decrypt_secret
+from .encryption import generate_rsa_key_pair, generate_symmetric_key, encrypt_secret, decrypt_secret
 
 
 @api_view(['POST'])
@@ -39,26 +39,33 @@ class UserList(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
 
-class SecretViewSet(viewsets.ModelViewSet):
-    queryset = Secret.objects.all()
-    serializer_class = SecretSerializer
-    permission_classes = [IsOwnerOrSharedWith]
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_secret(request):
+    owner = request.user
+    content = request.data.get('content')
 
-    def perform_create(self, serializer):
-        private_key, public_key = generate_rsa_key_pair()
-        owner = self.request.user
-        secret = serializer.save(owner=owner)
-        secret.encrypted_secret = encrypt_secret(public_key, secret.content)
-        secret.private_key = private_key
-        secret.save()
+    symmetric_key = generate_symmetric_key()
+    encrypted_content = encrypt_secret(content, symmetric_key)
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if instance.owner == request.user:
-            content = decrypt_secret(instance.private_key, instance.encrypted_secret)
-            return Response({'content': content})
-        else:
-            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+    secret = Secret(owner=owner, content=content, encrypted_content=encrypted_content)
+    secret.save()
+
+    return Response({'message': 'Secret created successfully'}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+def user_secrets(request):
+    secrets = Secret.objects.filter(owner=request.user)
+    serializer = SecretSerializer(secrets, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+def user_shared_secrets(request):
+    secrets = SharedSecret.objects.filter(shared_with=request.user)
+    serializer = SecretSerializer(secrets, many=True)
+    return Response(serializer.data)
 
 
 class SharedSecretViewSet(viewsets.ModelViewSet):

@@ -1,13 +1,10 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import register_user, UserList, SecretViewSet, SharedSecretViewSet
-
-router = DefaultRouter()
-router.register(r'secrets', SecretViewSet)
-router.register(r'shared-secrets', SharedSecretViewSet)
+from django.urls import path
+from .views import register_user, user_secrets, UserList, create_secret, user_shared_secrets
 
 urlpatterns = [
-    # path('user/register', include(router.urls)),
     path('user/register', register_user, name='register_user'),
+    path('user/secrets', user_secrets, name='retrieve_user_secrets'),
+    path('user/shared_secrets', user_shared_secrets, name='retrieve_user_shared_secrets'),
     path('users', UserList.as_view(), name='user-list'),
+    path('secrets/create', create_secret, name='create_secret'),
 ]

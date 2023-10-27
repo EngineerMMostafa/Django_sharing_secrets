@@ -7,7 +7,7 @@ from .models import UserProfile
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username')  # Include the fields you want to expose
+        fields = ('id', 'username')
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -15,10 +15,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserProfile
-        fields = ('id', 'username', 'private_key', 'public_key')  # Include the fields you want to expose
+        fields = ('id', 'username', 'private_key', 'public_key')
 
 
 class SecretSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='owner.username', read_only=True)
+
     class Meta:
         model = Secret
         fields = '__all__'
