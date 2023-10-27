@@ -1,0 +1,26 @@
+version: '3.8'
+services:
+  django:
+    build: .
+    volumes:
+      - .:/app
+    command: >
+      sh -c "python /app/manage.py makemigrations &&
+             python /app/manage.py migrate &&
+             python manage.py runserver 0.0.0.0:3030"
+    restart: always
+    expose:
+      - 3030
+    ports:
+      - "3030:3030"
+    env_file:
+      - .env
+    depends_on:
+      - db
+  db:
+    container_name: secrets_postgres
+    image: postgres:13-alpine
+    env_file:
+      - .env
+    volumes:
+      - ./db_backup:/var/lib/postgresql/data
