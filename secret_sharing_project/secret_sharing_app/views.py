@@ -25,10 +25,8 @@ def register_user(request):
             private_key, public_key = generate_rsa_key_pair()
             user = User.objects.create_user(username=username, password=password)
             user_profile, created = UserProfile.objects.get_or_create(user=user, private_key=private_key, public_key=public_key)
-            # user_profile.private_key = private_key
-            # user_profile.public_key = public_key
             user_profile.save()
-            serializer = UserProfileSerializer(user_profile)  # Assuming you have a UserSerializer
+            serializer = UserProfileSerializer(user_profile)
             response_data = serializer.data
             return Response(response_data, status=status.HTTP_201_CREATED)
         else:
