@@ -7,7 +7,7 @@ from .models import UserProfile
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username')
+        fields = ('username',)
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -15,7 +15,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserProfile
-        fields = ('id', 'username', 'private_key', 'public_key')
+        fields = ('username', 'public_key')
 
 
 class SecretSerializer(serializers.ModelSerializer):
