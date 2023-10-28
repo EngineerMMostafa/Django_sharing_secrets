@@ -16,5 +16,5 @@ class Secret(models.Model):
 
 class SharedSecret(models.Model):
     secret = models.ForeignKey(Secret, on_delete=models.CASCADE)
-    shared_with = models.ManyToManyField(User, related_name='secrets_shared_with')
+    shared_with = models.ForeignKey(User, on_delete=models.CASCADE)
     encrypted_key_by_other_pbk = models.BinaryField()
