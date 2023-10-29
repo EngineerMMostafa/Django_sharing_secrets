@@ -1,21 +1,18 @@
 import base64
 
-from rest_framework import status
+from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework import generics
 
-from .models import Secret, SharedSecret
-from .serializers import SecretSerializer
-
+from .models import UserProfile, Secret, SharedSecret
 from django.contrib.auth.models import User
-from .models import UserProfile
 
 from secret_sharing_app.serializers import UserProfileSerializer
 from .encryption import generate_rsa_key_pair, generate_symmetric_key, \
     encrypt_secret, decrypt_secret, encrypt_symmetric_key, decrypt_symmetric_key
 from django.shortcuts import get_object_or_404
+from django.core.exceptions import ObjectDoesNotExist
 
 
 @api_view(['POST'])
@@ -58,29 +55,86 @@ def create_secret(request):
                     encrypted_key_by_owner_pbk=encrypted_key_by_owner_pbk)
     secret.save()
 
+    shared_with_users = request.data.get('shared_with', [])
+    for username in shared_with_users:
+        try:
+            user = User.objects.get(username=username)
+
+            # skip secret owner
+            if user == owner:
+                continue
+
+            recipient_profile = UserProfile.objects.get(user=user)
+
+            # Encrypt the symmetric key with the recipient's public key
+            encrypted_symmetric_key = encrypt_symmetric_key(symmetric_key, recipient_profile.public_key)
+
+            shared_secret = SharedSecret(secret=secret, shared_with=user,
+                                         encrypted_key_by_other_pbk=encrypted_symmetric_key)
+            shared_secret.save()
+        except ObjectDoesNotExist:
+            print(f'usr {username} not found')
+
     return Response({'message': 'Secret created successfully'}, status=status.HTTP_201_CREATED)
 
 
-@api_view(['GET'])
+def validate_request_private_key(data):
+    private_key = data.get('private_key')
+    if not private_key:
+        raise Exception("Private_key is missing. This field is required.")
+
+    try:
+        parsed_private_key = base64.b64decode(data.get('private_key').encode('utf-8'))
+        if not parsed_private_key.startswith(b'-----BEGIN PRIVATE KEY-----\n') or \
+                not parsed_private_key.endswith(b'\n-----END PRIVATE KEY-----\n'):
+            raise Exception
+        return parsed_private_key
+    except Exception:
+        raise Exception("Invalid private_key.")
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def user_secrets(request):
+    try:
+        private_key = validate_request_private_key(request.data)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     secrets = Secret.objects.filter(owner=request.user)
+
     decrypted_secrets = []
-    if secrets:
-        private_key = base64.b64decode(request.data.get('private_key').encode('utf-8'))
-        for secret in secrets:
-            decrypted_key = decrypt_symmetric_key(secret.encrypted_key_by_owner_pbk, private_key)
-            decrypted_content = decrypt_secret(secret.encrypted_content, decrypted_key)
-            decrypted_secret = {
-                'content': decrypted_content,
-                'created_at': secret.created_at,
-            }
-            decrypted_secrets.append(decrypted_secret)
+    for secret in secrets:
+        decrypted_symmetric_key = decrypt_symmetric_key(secret.encrypted_key_by_owner_pbk, private_key)
+        decrypted_content = decrypt_secret(secret.encrypted_content, decrypted_symmetric_key)
+        decrypted_secret = {
+            'content': decrypted_content,
+            'created_at': secret.created_at,
+        }
+        decrypted_secrets.append(decrypted_secret)
 
-    return Response({'Result': decrypted_secrets})
+    return Response({'secrets': decrypted_secrets})
 
 
-@api_view(['GET'])
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def user_shared_secrets(request):
-    secrets = SharedSecret.objects.filter(shared_with=request.user)
-    serializer = SecretSerializer(secrets, many=True)
-    return Response(serializer.data)
+    try:
+        private_key = validate_request_private_key(request.data)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    shared_secrets = SharedSecret.objects.filter(shared_with=request.user)
+
+    decrypted_shared_secrets = []
+    for shared_secret in shared_secrets:
+        decrypted_symmetric_key = decrypt_symmetric_key(shared_secret.encrypted_key_by_other_pbk, private_key)
+        decrypted_content = decrypt_secret(shared_secret.secret.encrypted_content, decrypted_symmetric_key)
+        decrypted_secret = {
+            'secret_owner': shared_secret.secret.owner.username,
+            'content': decrypted_content,
+            'created_at': shared_secret.secret.created_at,
+        }
+        decrypted_shared_secrets.append(decrypted_secret)
+
+    return Response({'shared_secrets': decrypted_shared_secrets})
