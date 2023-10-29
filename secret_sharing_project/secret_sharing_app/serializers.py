@@ -15,7 +15,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserProfile
-        fields = ('username', 'public_key')
+        fields = ('id', 'username')
 
 
 class SecretSerializer(serializers.ModelSerializer):
