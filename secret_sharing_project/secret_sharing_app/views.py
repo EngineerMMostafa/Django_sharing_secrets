@@ -13,25 +13,25 @@ from .encryption import generate_rsa_key_pair, generate_symmetric_key, \
     encrypt_secret, decrypt_secret, encrypt_symmetric_key, decrypt_symmetric_key
 from django.shortcuts import get_object_or_404
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.utils import IntegrityError
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
-    if request.method == 'POST':
-        username = request.data.get('username')
-        password = request.data.get('password')
-        if username and password:
-            private_key, public_key = generate_rsa_key_pair()
-            user = User.objects.create_user(username=username, password=password)
-            user_profile, created = UserProfile.objects.get_or_create(user=user, public_key=public_key)
-            user_profile.save()
-            serializer = UserProfileSerializer(user_profile)
-            response_data = serializer.data
-            response_data['private_key'] = base64.b64encode(private_key).decode('utf-8')
-            return Response(response_data, status=status.HTTP_201_CREATED)
-        else:
-            return Response({'message': 'Invalid data provided.'}, status=status.HTTP_400_BAD_REQUEST)
+    username = request.data.get('username')
+    password = request.data.get('password')
+    if username and password:
+        private_key, public_key = generate_rsa_key_pair()
+        user = User.objects.create_user(username=username, password=password)
+        user_profile, created = UserProfile.objects.get_or_create(user=user, public_key=public_key)
+        user_profile.save()
+        serializer = UserProfileSerializer(user_profile)
+        response_data = serializer.data
+        response_data['private_key'] = base64.b64encode(private_key).decode('utf-8')
+        return Response(response_data, status=status.HTTP_201_CREATED)
+    else:
+        return Response({'message': 'Invalid data provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserList(generics.ListAPIView):
