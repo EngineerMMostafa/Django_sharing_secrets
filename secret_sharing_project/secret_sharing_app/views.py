@@ -22,8 +22,12 @@ def register_user(request):
     username = request.data.get('username')
     password = request.data.get('password')
     if username and password:
+        try:
+            user = User.objects.create_user(username=username, password=password)
+        except IntegrityError:
+            return Response({'message': 'Username already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
         private_key, public_key = generate_rsa_key_pair()
-        user = User.objects.create_user(username=username, password=password)
         user_profile, created = UserProfile.objects.get_or_create(user=user, public_key=public_key)
         user_profile.save()
         serializer = UserProfileSerializer(user_profile)
